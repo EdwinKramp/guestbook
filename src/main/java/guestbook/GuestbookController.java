@@ -20,6 +20,7 @@ import io.github.wimdeblauwe.hsbt.mvc.HxRequest;
 import jakarta.validation.Valid;
 
 import java.util.Optional;
+import java.util.Iterator;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -97,7 +98,6 @@ class GuestbookController {
 	 */
 	@PostMapping(path = "/guestbook")
 	String addEntry(@Valid @ModelAttribute("form") GuestbookForm form, Errors errors, Model model) {
-
 		if (errors.hasErrors()) {
 			return guestBook(model, form);
 		}
@@ -136,6 +136,9 @@ class GuestbookController {
 	 * <p>
 	 * Note that we do not react explicitly to a validation error: in such a case, Spring automatically returns an
 	 * appropriate JSON document describing the error.
+	 * 
+	 * *NEW* If the entry to be added is supposed to be a comment, "@Username of original entry" is prepended to the entries text
+	 * In case the number of the entry given is not valid it is treated as a regular GuestbookEntry
 	 *
 	 * @param form the form submitted by the user
 	 * @param model the model that's used to render the view
@@ -145,6 +148,32 @@ class GuestbookController {
 	@HxRequest
 	@PostMapping(path = "/guestbook")
 	HtmxResponse addEntry(@Valid GuestbookForm form, Model model) {
+
+		if(form.getCommentNumber() != null && !form.getCommentNumber().isEmpty()) {
+
+			String entryName;
+			String wantedName = "";
+			int i = 1;
+			Iterator<GuestbookEntry> entries = guestbook.findAll().iterator();
+
+			while(entries.hasNext()) {
+				entryName = entries.next().getName();
+
+				if(i == Integer.parseInt(form.getCommentNumber())) {
+					wantedName = "@" + entryName + ": ";
+				}
+
+				i++;
+				}
+
+			GuestbookForm commentForm = new GuestbookForm(form.getName(), wantedName + form.getText(), form.getCommentNumber());
+			model.addAttribute("entry", guestbook.save(commentForm.toNewEntry()));
+			model.addAttribute("index", guestbook.count());
+
+			return new HtmxResponse()
+					.addTemplate("guestbook :: entry")
+					.addTrigger("eventAdded");
+		}
 
 		model.addAttribute("entry", guestbook.save(form.toNewEntry()));
 		model.addAttribute("index", guestbook.count());
